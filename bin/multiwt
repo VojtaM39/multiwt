@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+MULTIWT_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+MULTIWT_ROOT="$(cd "$(dirname "$MULTIWT_BIN")/.." && pwd)"
+MULTIWT_LIB="$MULTIWT_ROOT/lib"
+
+# shellcheck source=../lib/common.sh
+. "$MULTIWT_LIB/common.sh"
+# shellcheck source=../lib/config.sh
+. "$MULTIWT_LIB/config.sh"
+# shellcheck source=../lib/git.sh
+. "$MULTIWT_LIB/git.sh"
+# shellcheck source=../lib/tmux.sh
+. "$MULTIWT_LIB/tmux.sh"
+
+usage() {
+  cat <<EOF
+Usage:
+  multiwt up <name> [--from <ref>] [--no-attach] [--no-install]
+  multiwt rm <name|path> [--purge] [--force]
+  multiwt ls
+  multiwt sync [--all]
+  multiwt status
+  multiwt exec <cmd>
+  multiwt cd <name>
+  multiwt register [--name <slug>] [--refresh]
+
+Global flags:
+  --verbose          Verbose logging
+  -h, --help         Show this help
+EOF
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+
+  case "$cmd" in
+    -h|--help|"") usage; [[ -z "$cmd" ]] && exit 1 || exit 0 ;;
+    up)       . "$MULTIWT_LIB/up.sh"       && cmd_up       "$@" ;;
+    rm)       . "$MULTIWT_LIB/rm.sh"       && cmd_rm       "$@" ;;
+    ls)       . "$MULTIWT_LIB/ls.sh"       && cmd_ls       "$@" ;;
+    sync)     . "$MULTIWT_LIB/sync.sh"     && cmd_sync     "$@" ;;
+    status)   . "$MULTIWT_LIB/status.sh"   && cmd_status   "$@" ;;
+    exec)     . "$MULTIWT_LIB/exec.sh"     && cmd_exec     "$@" ;;
+    cd)       . "$MULTIWT_LIB/cd.sh"       && cmd_cd       "$@" ;;
+    register) . "$MULTIWT_LIB/register.sh" && cmd_register "$@" ;;
+    *) err "Unknown command: $cmd"; usage; exit 1 ;;
+  esac
+}
+main "$@"
