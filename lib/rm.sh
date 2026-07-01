@@ -46,7 +46,7 @@ cmd_rm() {
   fi
 
   # Remove the worktree.
-  if [[ -d "$wt_path" ]] || git -C "$MULTIWT_ROOT_PATH" worktree list --porcelain | grep -q "^worktree $wt_path$"; then
+  if [[ -d "$wt_path" ]] || [[ "$(worktree_registered "$wt_path")" == "yes" ]]; then
     local args=(worktree remove "$wt_path")
     [[ "$force" -eq 1 ]] && args=(worktree remove --force "$wt_path")
     info "removing worktree: $wt_path"

@@ -59,6 +59,7 @@ _register_init() {
   if [[ -f "$target" ]]; then
     local existing_path
     existing_path="$(yq -r '.path // ""' "$target")"
+    existing_path="${existing_path/#\~/$HOME}"
     if [[ "$existing_path" == "$MULTIWT_ROOT_PATH" ]]; then
       ok "already registered: $target"
       _open_editor "$target"
@@ -69,11 +70,15 @@ _register_init() {
     fi
   fi
 
-  # Write template atomically.
+  # Write template atomically. Single-quote path/name so yaml-special chars
+  # (':', '#', ...) can't break the document; escape embedded single quotes.
+  local q_path q_name
+  q_path="$(printf '%s' "$MULTIWT_ROOT_PATH" | sed "s/'/''/g")"
+  q_name="$(printf '%s' "$name" | sed "s/'/''/g")"
   local tmp="${target}.tmp.$$"
   cat > "$tmp" <<EOF
-path: $MULTIWT_ROOT_PATH
-name: $name
+path: '$q_path'
+name: '$q_name'
 
 # worktree:
 #   parent_dir: ../worktrees

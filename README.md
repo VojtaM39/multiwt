@@ -83,6 +83,11 @@ matches the repo's path.
 
 ## Notes
 
+- `multiwt exec` takes the command as a single quoted string:
+  `multiwt exec 'npm test --watch'`. Unquoted args are re-joined with spaces.
+- `copy_env` is first-write-wins: existing files in the worktree are never
+  overwritten (`cp -n`). This also applies to directory entries — pre-existing
+  destination files aren't refreshed.
 - Branch names with spaces, `#`, `?`, `~`, `^`, `*`, `\` are rejected.
 - tmux session names can't contain `:` or `.` — those are normalized to `_`.
 - Bare repos are not supported.

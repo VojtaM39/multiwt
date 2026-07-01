@@ -33,6 +33,14 @@ EOF
 }
 
 main() {
+  # Global flags may appear before the subcommand.
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --verbose) MULTIWT_VERBOSE=1; shift ;;
+      *) break ;;
+    esac
+  done
+
   local cmd="${1:-}"
   shift || true
 

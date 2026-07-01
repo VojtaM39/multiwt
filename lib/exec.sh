@@ -22,8 +22,9 @@ cmd_exec() {
   tmp="$(mktemp -d -t multiwt-exec.XXXXXX)"
 
   # One status file per worktree (filename = sanitized path).
-  worktree_paths \
-    | xargs -I {} -P "$jobs" bash -c '
+  # NUL-delimited so paths with whitespace survive.
+  worktree_paths | tr '\n' '\0' \
+    | xargs -0 -I {} -P "$jobs" bash -c '
         wt="$1"; cmd="$2"; tmp="$3"
         slug="$(printf "%s" "$wt" | tr "/ " "__")"
         branch="$(git -C "$wt" symbolic-ref --short HEAD 2>/dev/null || echo "?")"

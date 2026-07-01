@@ -78,7 +78,8 @@ _up_copy_env_files() {
     fi
     mkdir -p "$(dirname "$dst")"
     if [[ -d "$src" ]]; then
-      # Recursive copy of directory contents; -n to avoid clobber.
+      # Recursive copy, first-write wins: BSD cp -n skips existing files and
+      # still exits 0, so pre-existing dest content is never refreshed.
       cp -Rn "$src/." "$dst/" 2>/dev/null || true
     else
       cp -n "$src" "$dst" 2>/dev/null || true

@@ -5,8 +5,13 @@ cmd_status() {
   resolve_project
   tmux_probe
 
-  local fmt="%-40s  %-20s  %-7s  %6s  %6s  %5s  %s\n"
-  printf "%s$fmt%s" "$C_BLD" "BRANCH" "WORKTREE" "DIRTY" "AHEAD" "BEHIND" "PANES" "LAST COMMIT" "$C_RST"
+  # Colors for stdout: common.sh gates C_* on stderr being a tty; the table
+  # goes to stdout, so re-gate here.
+  local o_bld="$C_BLD" o_yel="$C_YEL" o_rst="$C_RST"
+  if [[ ! -t 1 ]]; then o_bld=""; o_yel=""; o_rst=""; fi
+
+  local fmt="%-40s  %-20s  %-7s  %6s  %6s  %5s  %s"
+  printf "%s${fmt}%s\n" "$o_bld" "BRANCH" "WORKTREE" "DIRTY" "AHEAD" "BEHIND" "PANES" "LAST COMMIT" "$o_rst"
 
   local p branch upstream base ahead behind dirty panes last short_p
   while IFS= read -r p; do
@@ -30,7 +35,7 @@ cmd_status() {
     fi
 
     if [[ -n "$(git -C "$p" status --porcelain 2>/dev/null)" ]]; then
-      dirty="${C_YEL}*${C_RST}"
+      dirty="${o_yel}*${o_rst}"
     else
       dirty=" "
     fi
@@ -46,6 +51,6 @@ cmd_status() {
     # Truncate path for table layout.
     if [[ ${#short_p} -gt 40 ]]; then short_p="...${short_p: -37}"; fi
 
-    printf "$fmt" "$branch" "$short_p" "$dirty" "$ahead" "$behind" "$panes" "$last"
+    printf "${fmt}\n" "$branch" "$short_p" "$dirty" "$ahead" "$behind" "$panes" "$last"
   done < <(worktree_paths)
 }
