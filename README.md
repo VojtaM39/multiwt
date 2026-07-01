@@ -12,10 +12,25 @@ files copied and setup hooks run.
 
 ## Install
 
-Add `bin/` to your `$PATH`:
+Clone the repo anywhere, then run the installer:
 
 ```bash
-echo 'export PATH="$HOME/agentic/tools/multiwt/bin:$PATH"' >> ~/.bash_profile
+git clone <repo-url> multiwt
+cd multiwt
+./install.sh
+```
+
+This symlinks `multiwt` into a directory on your `$PATH` (prefers
+`~/.local/bin`, then `~/bin`, then `/usr/local/bin`) and points it back at this
+checkout — so `git pull` here keeps your installed version current. If the
+chosen directory isn't already on `$PATH`, the installer prints the `export`
+line to add to your shell profile.
+
+Options:
+
+```bash
+./install.sh --dir ~/bin    # install into a specific directory
+./install.sh --uninstall    # remove the symlink
 ```
 
 Then in any git repo:

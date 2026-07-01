@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-MULTIWT_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-MULTIWT_ROOT="$(cd "$(dirname "$MULTIWT_BIN")/.." && pwd)"
+# Resolve this script through any symlinks so lib/ is found even when
+# `multiwt` is installed as a symlink on $PATH (e.g. ~/.local/bin/multiwt).
+MULTIWT_SRC="${BASH_SOURCE[0]}"
+while [[ -h "$MULTIWT_SRC" ]]; do
+  MULTIWT_DIR="$(cd -P "$(dirname "$MULTIWT_SRC")" && pwd)"
+  MULTIWT_SRC="$(readlink "$MULTIWT_SRC")"
+  [[ "$MULTIWT_SRC" != /* ]] && MULTIWT_SRC="$MULTIWT_DIR/$MULTIWT_SRC"
+done
+MULTIWT_BIN="$(cd -P "$(dirname "$MULTIWT_SRC")" && pwd)/$(basename "$MULTIWT_SRC")"
+MULTIWT_ROOT="$(cd -P "$(dirname "$MULTIWT_BIN")/.." && pwd)"
 MULTIWT_LIB="$MULTIWT_ROOT/lib"
 
 # shellcheck source=../lib/common.sh
