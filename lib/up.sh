@@ -112,7 +112,11 @@ _up_run_setup() {
 _up_attach_or_create_session() {
   local session="$1" dir="$2" attach="$3"
   if [[ "$MULTIWT_TMUX_AVAILABLE" -ne 1 ]]; then
-    warn "tmux not available; skipping session creation"
+    if [[ "${MULTIWT_TMUX_DISABLED:-0}" -eq 1 ]]; then
+      vlog "tmux disabled by config (worktree.tmux_enabled: false); skipping session"
+    else
+      warn "tmux not available; skipping session creation"
+    fi
     return 0
   fi
   tmux_create_session "$session" "$dir"

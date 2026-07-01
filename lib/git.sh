@@ -68,7 +68,8 @@ is_main_worktree() {
 ensure_branch() {
   local name="$1" base_override="${2:-}"
   if git_local_branch_exists "$name"; then
-    vlog "branch exists locally: $name"
+    # Reusing an old branch means old code — make its age visible.
+    info "using existing local branch: $name ($(git -C "$MULTIWT_ROOT_PATH" log -1 --format='%h, %cr' "$name"))"
     return 0
   fi
   if git_remote_branch_exists "$name"; then

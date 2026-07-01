@@ -83,6 +83,7 @@ name: '$q_name'
 # worktree:
 #   parent_dir: ../worktrees
 #   base_ref: origin/main
+#   tmux_enabled: true
 #   tmux_session_prefix: ""
 #   copy_env:
 #     - .env

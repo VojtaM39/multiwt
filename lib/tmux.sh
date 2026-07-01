@@ -6,12 +6,17 @@ tmux_available() {
   command -v tmux >/dev/null 2>&1
 }
 
-# Sets MULTIWT_TMUX_AVAILABLE=1|0 once per command invocation.
+# Sets MULTIWT_TMUX_AVAILABLE=1|0 and MULTIWT_TMUX_DISABLED=1|0 once per
+# command invocation. Must run after resolve_project (reads config).
 tmux_probe() {
-  if tmux_available && tmux list-sessions >/dev/null 2>&1; then
-    MULTIWT_TMUX_AVAILABLE=1
-  elif tmux_available; then
-    # tmux exists but no server running. We can still create sessions.
+  MULTIWT_TMUX_DISABLED=0
+  if [[ "$(cfg_get worktree.tmux_enabled "true")" == "false" ]]; then
+    MULTIWT_TMUX_DISABLED=1
+    MULTIWT_TMUX_AVAILABLE=0
+    return 0
+  fi
+  if tmux_available; then
+    # Even with no server running we can still create sessions.
     MULTIWT_TMUX_AVAILABLE=1
   else
     MULTIWT_TMUX_AVAILABLE=0

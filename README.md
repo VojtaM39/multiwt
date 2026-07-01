@@ -72,6 +72,7 @@ name: myproj                      # required, used for tmux prefix and runs/
 worktree:
   parent_dir: ../worktrees        # default
   base_ref: origin/main           # default
+  tmux_enabled: true              # default; false = never create/kill/show tmux sessions
   tmux_session_prefix: ""         # e.g. "myproj-" for collision protection
   copy_env:                       # files/dirs to copy from main worktree
     - .env
@@ -108,7 +109,8 @@ matches the repo's path.
 - Bare repos are not supported.
 - `multiwt up` from any worktree of a project resolves to the same config
   (uses `git rev-parse --git-common-dir`).
-- If `tmux` isn't running, `up` still creates the worktree and warns.
+- If `tmux` isn't running, `up` still creates the worktree and warns. To turn
+  tmux off on purpose (no warning), set `worktree.tmux_enabled: false`.
 
 ## Env vars
 
