@@ -80,5 +80,5 @@ ensure_branch() {
   local base
   base="${base_override:-$(cfg_get worktree.base_ref "origin/main")}"
   info "creating branch '$name' from '$base'"
-  git -C "$MULTIWT_ROOT_PATH" branch "$name" "$base"
+  git -C "$MULTIWT_ROOT_PATH" branch --no-track "$name" "$base"
 }
