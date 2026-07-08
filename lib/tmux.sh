@@ -60,6 +60,18 @@ tmux_attach_or_switch() {
   fi
 }
 
+# Focus a pane without touching layout (select-window/select-pane only) and
+# echo the session name it lives in. Returns 1 if the pane is gone.
+tmux_focus_pane() {
+  local pane="$1" sess win
+  sess="$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null || true)"
+  [[ -z "$sess" ]] && return 1
+  win="$(tmux display-message -p -t "$pane" '#{window_id}' 2>/dev/null || true)"
+  [[ -n "$win" ]] && tmux select-window -t "$win"
+  tmux select-pane -t "$pane"
+  printf '%s' "$sess"
+}
+
 tmux_kill_session() {
   local sess="$1"
   if tmux_has_session "$sess"; then

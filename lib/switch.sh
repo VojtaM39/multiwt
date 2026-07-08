@@ -156,10 +156,10 @@ _switch_emit_wt() {
 
   local n_att=0 n_wait=0 n_run=0
   local best_pane="-" best_state="-" best_rank=0 best_ts=0
-  local line sid state cwd pane ts msg rank
+  local line sid state cwd pane ts seen msg rank
   if [[ ${#sessions[@]} -gt 0 ]]; then
     for line in "${sessions[@]}"; do
-      IFS=$'\t' read -r sid state cwd pane ts msg <<< "$line"
+      IFS=$'\t' read -r sid state cwd pane ts seen msg <<< "$line"
       [[ "$cwd" == "$wt" || "$cwd" == "$wt"/* ]] || continue
       case "$state" in
         attention) n_att=$((n_att + 1)) ;;
@@ -252,13 +252,9 @@ _switch_go() {
   if [[ "$jump" -eq 1 ]]; then
     # The pane may have been moved to another session since the state file was
     # written; follow the pane, since it's the claude session we want.
-    local pane_sess win
-    pane_sess="$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null || true)"
-    if [[ -n "$pane_sess" ]]; then
+    local pane_sess
+    if pane_sess="$(tmux_focus_pane "$pane")"; then
       target="$pane_sess"
-      win="$(tmux display-message -p -t "$pane" '#{window_id}' 2>/dev/null || true)"
-      [[ -n "$win" ]] && tmux select-window -t "$win"
-      tmux select-pane -t "$pane"
     fi
   fi
 
@@ -294,9 +290,9 @@ _switch_preview() {
   fi
 
   printf '\n%sclaude sessions%s\n' "$S_BLD" "$S_RST"
-  local n=0 now sid state cwd pane ts msg
+  local n=0 now sid state cwd pane ts seen msg
   now="$(date +%s)"
-  while IFS=$'\t' read -r sid state cwd pane ts msg; do
+  while IFS=$'\t' read -r sid state cwd pane ts seen msg; do
     [[ "$cwd" == "$wt" || "$cwd" == "$wt"/* ]] || continue
     n=$((n + 1))
     printf '  %s %-11s %s%-5s %4s%s  %s\n' \

@@ -55,7 +55,8 @@ multiwt up feat/foo  # creates worktree + tmux session, attaches
 | `multiwt sync [--all]`                   | Fetch + rebase current (or all) worktrees on upstream                |
 | `multiwt exec <cmd>`                     | Run `<cmd>` in every worktree, prefix output with branch (parallel)  |
 | `multiwt cd <name>`                      | Print the worktree path — use as `cd "$(multiwt cd feat/foo)"`       |
-| `multiwt switch [--all]`                 | fzf switcher across registered projects/worktrees with Claude status. Opens on worktrees with a live Claude session; `--all` starts unfiltered |
+| `multiwt switch [--all]`                 | fzf switcher across registered projects/worktrees with Claude status. Opens on active worktrees; `--all` starts unfiltered |
+| `multiwt next [--print]`                 | Jump to the next Claude session needing attention (`--print`: just print its pane id) |
 | `multiwt register [--name <slug>]`       | Initialize this repo's config                                        |
 | `multiwt register --refresh`             | Walk `~/.agentic/repos/`, rewrite stale `path:` entries              |
 | `multiwt claude-hook`                    | Internal: endpoint for Claude Code hooks (see below)                 |
@@ -102,6 +103,25 @@ bind-key i display-popup -E -w 90% -h 70% "multiwt switch"
 If your tmux launches commands with a non-login shell that lacks your `$PATH`,
 use the absolute path to the `multiwt` symlink (e.g.
 `~/.local/bin/multiwt switch`).
+
+### Attention jump
+
+`multiwt next` teleports you to the Claude session that needs you most —
+permission prompts (`⚠`) first, then finished turns waiting for input (`◐`),
+longest-neglected first. Focus changes use `select-window`/`select-pane`
+only; layouts are never modified. Bind it:
+
+```tmux
+bind g run-shell "multiwt next"
+```
+
+Each press marks the pane you're leaving as *seen*, so repeated presses walk
+through every needy session exactly once (across all projects and tmux
+sessions) and then report "nothing new" — no ping-ponging. A session
+re-enters the rotation as soon as it produces a new event (finishes another
+turn, raises a permission prompt). Merely reading a session without pressing
+`g` from it does not mark it seen. Seen-ness only affects `next`; the
+switcher always shows the true `⚠/◐/●` state.
 
 ## Claude session status (hooks)
 

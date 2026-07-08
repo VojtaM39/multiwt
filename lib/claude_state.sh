@@ -8,6 +8,9 @@
 #   pane=%12           tmux pane id; empty if launched outside tmux
 #   ts=<epoch>         last hook event
 #   msg=<text>         last notification message, single line
+#   seen=<epoch>       last `multiwt next` visit; a session is only a jump
+#                      candidate while ts > seen. Hook writes drop the field
+#                      (new activity = unseen again).
 
 claude_state_dir() { printf '%s/state/claude' "$(agentic_root)"; }
 
@@ -53,6 +56,22 @@ _claude_state_field() {
   sed -n "s/^${2}=//p" "$1" 2>/dev/null | head -n1
 }
 
+# Stamp seen=<now> on every state file recorded for the given pane.
+claude_state_mark_seen() {
+  local pane="$1" dir f now tmp
+  [[ -z "$pane" || "$pane" == "-" ]] && return 0
+  dir="$(claude_state_dir)"
+  [[ -d "$dir" ]] || return 0
+  now="$(date +%s)"
+  shopt -s nullglob
+  for f in "$dir"/*; do
+    [[ "$(_claude_state_field "$f" pane)" == "$pane" ]] || continue
+    tmp="$f.tmp.$$"
+    { grep -v '^seen=' "$f"; printf 'seen=%s\n' "$now"; } > "$tmp" && mv "$tmp" "$f"
+  done
+  shopt -u nullglob
+}
+
 # Heuristic: does the process tree under <pid> contain a claude process?
 # The pane holds a shell whose child (or grandchild, via wrappers) is claude.
 _proc_tree_has_claude() {
@@ -70,13 +89,13 @@ _proc_tree_has_claude() {
 }
 
 # Print live sessions, one per line, tab-separated:
-#   <session_id> <state> <cwd> <pane|-> <ts> <msg>
+#   <session_id> <state> <cwd> <pane|-> <ts> <seen> <msg>
 # Fields before <msg> are never empty ("-"/0 placeholders) so tab-parsing with
 # `read` can't collapse them. GCs files for dead sessions as a side effect:
 # a recorded pane that no longer exists, or exists without a claude process
 # under it, means the session died without a SessionEnd hook (crash, kill).
 claude_state_live_sessions() {
-  local dir f sid state cwd pane ts msg now pane_pid
+  local dir f sid state cwd pane ts seen msg now pane_pid
   dir="$(claude_state_dir)"
   [[ -d "$dir" ]] || return 0
   now="$(date +%s)"
@@ -87,6 +106,7 @@ claude_state_live_sessions() {
     cwd="$(_claude_state_field "$f" cwd)"
     pane="$(_claude_state_field "$f" pane)"
     ts="$(_claude_state_field "$f" ts)"
+    seen="$(_claude_state_field "$f" seen)"
     msg="$(_claude_state_field "$f" msg)"
     if [[ -z "$state" || -z "$cwd" ]]; then
       rm -f "$f"; continue
@@ -100,8 +120,8 @@ claude_state_live_sessions() {
         rm -f "$f"; continue
       fi
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$sid" "$state" "$cwd" "${pane:--}" "${ts:-0}" "$msg"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$sid" "$state" "$cwd" "${pane:--}" "${ts:-0}" "${seen:-0}" "$msg"
   done
   shopt -u nullglob
 }
