@@ -178,12 +178,17 @@ _switch_emit_wt() {
 
   # Worktree row: always in the worktrees view; in the sessions view only as a
   # placeholder for worktrees with no claude session; in the active view only
-  # for worktrees that have one.
+  # for worktrees with a live tmux session (or a claude session outside tmux).
   local total=$((n_att + n_wait + n_run))
   if [[ "$kind" == "sessions" && "$total" -gt 0 ]]; then
     return 0
   fi
-  if [[ "$kind" == "active" && "$total" -eq 0 ]]; then
+
+  local has_tmux=0
+  if [[ "$sess" != "-" ]] && tmux_available && tmux_has_session "$sess"; then
+    has_tmux=1
+  fi
+  if [[ "$kind" == "active" && "$has_tmux" -eq 0 && "$total" -eq 0 ]]; then
     return 0
   fi
 
@@ -196,7 +201,7 @@ _switch_emit_wt() {
   local tmux_note=""
   if [[ "$sess" == "-" ]]; then
     tmux_note=" ${S_DIM}(tmux off)${S_RST}"
-  elif ! { tmux_available && tmux_has_session "$sess"; }; then
+  elif [[ "$has_tmux" -eq 0 ]]; then
     tmux_note=" ${S_DIM}(no tmux)${S_RST}"
   fi
 

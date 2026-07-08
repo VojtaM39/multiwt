@@ -79,10 +79,11 @@ backend      ▸ fix/auth-race   ○  (no tmux)
   waiting for your next prompt · `● N` — running · `○` — no Claude session.
 - The preview panel shows per-worktree detail: dirty/ahead/behind, last
   commit, and each Claude session with its pane and age.
-- By default the switcher opens filtered to worktrees with at least one live
-  Claude session; `ctrl-w` toggles between that and all worktrees (the header
-  row shows which view you're in), `ctrl-s` shows one row per Claude session.
-  `multiwt switch --all` opens unfiltered.
+- By default the switcher opens filtered to active worktrees — those with a
+  live tmux session (or a Claude session running outside tmux); `ctrl-w`
+  toggles between that and all worktrees (the header row shows which view
+  you're in), `ctrl-s` shows one row per Claude session. `multiwt switch
+  --all` opens unfiltered.
 
 Enter switches to the worktree's tmux session, creating it first if needed.
 If the most urgent Claude session is blocked (`⚠`) or waiting (`◐`), enter
