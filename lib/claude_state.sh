@@ -136,3 +136,41 @@ claude_state_rank() {
     *)         echo 0 ;;
   esac
 }
+
+# --- shared TUI helpers (fzf switcher + dashboard) -------------------------
+# Colors are intentionally not tty-gated: consumers render them off-tty
+# (fzf --ansi reads rows from a pipe; the dashboard builds frames in $(...)).
+S_RED=$'\033[31m'; S_YEL=$'\033[33m'; S_GRN=$'\033[32m'; S_CYN=$'\033[36m'
+S_DIM=$'\033[2m';  S_BLD=$'\033[1m';  S_RST=$'\033[0m'
+
+claude_state_icon() {
+  case "$1" in
+    attention) printf '%s⚠%s' "$S_RED" "$S_RST" ;;
+    waiting)   printf '%s◐%s' "$S_CYN" "$S_RST" ;;
+    running)   printf '%s●%s' "$S_GRN" "$S_RST" ;;
+    *)         printf '%s○%s' "$S_DIM" "$S_RST" ;;
+  esac
+}
+
+claude_state_label() {
+  case "$1" in
+    attention) printf 'needs input' ;;
+    waiting)   printf 'waiting' ;;
+    running)   printf 'running' ;;
+    *)         printf '-' ;;
+  esac
+}
+
+claude_fmt_age() {
+  local s="$1"
+  if (( s < 0 )); then s=0; fi
+  if (( s < 60 )); then
+    printf '%ds' "$s"
+  elif (( s < 3600 )); then
+    printf '%dm' $((s / 60))
+  elif (( s < 86400 )); then
+    printf '%dh' $((s / 3600))
+  else
+    printf '%dd' $((s / 86400))
+  fi
+}

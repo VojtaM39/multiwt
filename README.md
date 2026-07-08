@@ -110,6 +110,37 @@ If your tmux launches commands with a non-login shell that lacks your `$PATH`,
 use the absolute path to the `multiwt` symlink (e.g.
 `~/.local/bin/multiwt switch`).
 
+### Dashboard
+
+`multiwt dash` is a full-screen, always-on TUI meant for a spare monitor:
+every registered project, its active worktrees, and the Claude sessions
+inside them, fully re-scanned every tick — nothing is cached, nothing needs
+a manual refresh.
+
+```
+multiwt · 18:48:49 · q quit
+
+agentic
+  ▸ main                          * ●1
+      ● running     %11     3s
+ai-scraper3
+  ▸ main                            ⚠1 ◐1
+      ⚠ needs input %10     2m  Claude needs your permission to use Bash
+      ◐ waiting     %13    10m  Claude is waiting for your input
+```
+
+- Only active worktrees are shown: a live tmux session, or a Claude session
+  running outside tmux. Everything else is hidden (use the switcher's
+  `ctrl-w` view to see all worktrees).
+- Sessions needing input are painted red — visible from across the room.
+- Refresh cadence is `--interval` seconds (default 2); `q` quits.
+- Frames redraw in place (no clear-screen), so there's no flicker.
+- `multiwt dash --once` prints a single frame and exits — usable in scripts
+  or `watch`-style setups.
+
+Run it in a plain terminal on the second monitor, or give it a dedicated
+tmux session: `tmux new-session -s dash 'multiwt dash'`.
+
 ### Attention jump
 
 `multiwt next` teleports you to the Claude session that needs you most —

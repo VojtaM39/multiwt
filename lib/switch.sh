@@ -13,11 +13,6 @@
 
 . "$MULTIWT_LIB/claude_state.sh"
 
-# Colors are always on here: rows/preview are consumed by fzf --ansi, whose
-# stdin/stdout are pipes, so the tty-gated C_* vars from common.sh are empty.
-S_YEL=$'\033[33m'; S_GRN=$'\033[32m'; S_CYN=$'\033[36m'
-S_DIM=$'\033[2m';  S_BLD=$'\033[1m';  S_RST=$'\033[0m'
-
 _switch_usage() {
   cat <<EOF
 Usage: multiwt switch [--all]
@@ -262,7 +257,7 @@ _switch_emit_wt() {
   fi
 
   local agg=""
-  if (( n_att  > 0 )); then agg+="${S_YEL}⚠${n_att}${S_RST} "; fi
+  if (( n_att  > 0 )); then agg+="${S_RED}⚠${n_att}${S_RST} "; fi
   if (( n_wait > 0 )); then agg+="${S_CYN}◐${n_wait}${S_RST} "; fi
   if (( n_run  > 0 )); then agg+="${S_GRN}●${n_run}${S_RST} "; fi
   if [[ -z "$agg" ]]; then agg="${S_DIM}○${S_RST}"; fi
@@ -284,10 +279,10 @@ _switch_emit_session_row() {
   local project="$1" branch="$2" wt="$3" sess="$4" state="$5" pane="$6" ts="$7"
   local now age disp
   now="$(date +%s)"
-  age="$(_switch_fmt_age $((now - ts)))"
+  age="$(claude_fmt_age $((now - ts)))"
   printf -v disp '%s%-12.12s%s ▸ %-28.28s %s %-11s %s%-5s %4s%s' \
     "$S_BLD" "$project" "$S_RST" "$branch" \
-    "$(_switch_state_icon "$state")" "$(_switch_state_label "$state")" \
+    "$(claude_state_icon "$state")" "$(claude_state_label "$state")" \
     "$S_DIM" "$pane" "$age" "$S_RST"
   printf 's\t%s\t%s\t%s\t%s\t%s\n' "$wt" "$sess" "$pane" "$state" "$disp"
 }
@@ -365,42 +360,12 @@ _switch_preview() {
     [[ "$cwd" == "$wt" || "$cwd" == "$wt"/* ]] || continue
     n=$((n + 1))
     printf '  %s %-11s %s%-5s %4s%s  %s\n' \
-      "$(_switch_state_icon "$state")" "$(_switch_state_label "$state")" \
-      "$S_DIM" "$pane" "$(_switch_fmt_age $((now - ts)))" "$S_RST" "$msg"
+      "$(claude_state_icon "$state")" "$(claude_state_label "$state")" \
+      "$S_DIM" "$pane" "$(claude_fmt_age $((now - ts)))" "$S_RST" "$msg"
   done < <(claude_state_live_sessions)
   if [[ "$n" -eq 0 ]]; then
     printf '  %s(none)%s\n' "$S_DIM" "$S_RST"
   fi
 }
 
-_switch_state_icon() {
-  case "$1" in
-    attention) printf '%s⚠%s' "$S_YEL" "$S_RST" ;;
-    waiting)   printf '%s◐%s' "$S_CYN" "$S_RST" ;;
-    running)   printf '%s●%s' "$S_GRN" "$S_RST" ;;
-    *)         printf '%s○%s' "$S_DIM" "$S_RST" ;;
-  esac
-}
-
-_switch_state_label() {
-  case "$1" in
-    attention) printf 'needs input' ;;
-    waiting)   printf 'waiting' ;;
-    running)   printf 'running' ;;
-    *)         printf '-' ;;
-  esac
-}
-
-_switch_fmt_age() {
-  local s="$1"
-  if (( s < 0 )); then s=0; fi
-  if (( s < 60 )); then
-    printf '%ds' "$s"
-  elif (( s < 3600 )); then
-    printf '%dm' $((s / 60))
-  elif (( s < 86400 )); then
-    printf '%dh' $((s / 3600))
-  else
-    printf '%dd' $((s / 86400))
-  fi
-}
+# State icon/label/age helpers live in claude_state.sh (shared with dash).
