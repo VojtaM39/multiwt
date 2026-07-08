@@ -55,7 +55,7 @@ multiwt up feat/foo  # creates worktree + tmux session, attaches
 | `multiwt sync [--all]`                   | Fetch + rebase current (or all) worktrees on upstream                |
 | `multiwt exec <cmd>`                     | Run `<cmd>` in every worktree, prefix output with branch (parallel)  |
 | `multiwt cd <name>`                      | Print the worktree path — use as `cd "$(multiwt cd feat/foo)"`       |
-| `multiwt switch`                         | fzf switcher across ALL registered projects/worktrees, with Claude status |
+| `multiwt switch [--all]`                 | fzf switcher across registered projects/worktrees with Claude status. Opens on worktrees with a live Claude session; `--all` starts unfiltered |
 | `multiwt register [--name <slug>]`       | Initialize this repo's config                                        |
 | `multiwt register --refresh`             | Walk `~/.agentic/repos/`, rewrite stale `path:` entries              |
 | `multiwt claude-hook`                    | Internal: endpoint for Claude Code hooks (see below)                 |
@@ -79,7 +79,10 @@ backend      ▸ fix/auth-race   ○  (no tmux)
   waiting for your next prompt · `● N` — running · `○` — no Claude session.
 - The preview panel shows per-worktree detail: dirty/ahead/behind, last
   commit, and each Claude session with its pane and age.
-- `ctrl-s` switches to one-row-per-Claude-session view (`ctrl-w` back).
+- By default the switcher opens filtered to worktrees with at least one live
+  Claude session; `ctrl-w` toggles between that and all worktrees (the header
+  row shows which view you're in), `ctrl-s` shows one row per Claude session.
+  `multiwt switch --all` opens unfiltered.
 
 Enter switches to the worktree's tmux session, creating it first if needed.
 If the most urgent Claude session is blocked (`⚠`) or waiting (`◐`), enter

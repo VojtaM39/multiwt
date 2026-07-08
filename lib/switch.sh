@@ -20,11 +20,15 @@ S_DIM=$'\033[2m';  S_BLD=$'\033[1m';  S_RST=$'\033[0m'
 
 _switch_usage() {
   cat <<EOF
-Usage: multiwt switch
+Usage: multiwt switch [--all]
+
+Opens on worktrees with a live Claude session; --all starts with every
+worktree instead. ctrl-w toggles between the two either way.
 
 Internal flags (used by the fzf UI itself):
-  --list <worktrees|sessions>   Print rows
-  --preview <wt_path> <sess>    Render the preview panel
+  --list <worktrees|sessions|active>   Print rows
+  --toggle <state-file>                Flip active/all and print the new rows
+  --preview <wt_path> <sess>           Render the preview panel
 EOF
 }
 
@@ -32,41 +36,70 @@ cmd_switch() {
   require_yq
   case "${1:-}" in
     --list)    shift; _switch_list "${1:-worktrees}" ;;
+    --toggle)  shift; _switch_toggle "${1:?state file required}" ;;
     --preview) shift; _switch_preview "$@" ;;
+    --all)     _switch_ui worktrees ;;
+    --active)  _switch_ui active ;;
     -h|--help) _switch_usage ;;
-    "")        _switch_ui ;;
+    "")        _switch_ui active ;;
     *)         abort "unknown arg: $1" ;;
   esac
 }
 
+# ctrl-w handler: flip the view recorded in the state file, print the new
+# rows. (fzf 0.40 has no `transform`, so the current view lives in a file and
+# the view indicator is the sticky header row, not the prompt.)
+_switch_toggle() {
+  local sf="$1" cur next
+  cur="$(cat "$sf" 2>/dev/null || echo active)"
+  if [[ "$cur" == "active" ]]; then next="worktrees"; else next="active"; fi
+  printf '%s' "$next" > "$sf"
+  _switch_list "$next"
+}
+
 _switch_ui() {
+  local kind="$1"
   require_cmd fzf "Install via 'brew install fzf'."
   tmux_available || abort "tmux not available"
 
-  local self_q
+  local self_q sf sf_q
   printf -v self_q '%q' "$MULTIWT_BIN"
+  sf="$(mktemp "${TMPDIR:-/tmp}/multiwt-switch.XXXXXX")"
+  printf '%s' "$kind" > "$sf"
+  printf -v sf_q '%q' "$sf"
 
-  local out
-  out="$(_switch_list worktrees | fzf \
+  local out rc=0
+  out="$(_switch_list "$kind" | fzf \
     --ansi --delimiter=$'\t' --with-nth=6 \
     --layout=reverse --info=inline \
-    --prompt='worktrees> ' \
-    --header='enter: switch · ctrl-s: claude sessions · ctrl-w: worktrees' \
+    --header-lines=1 \
+    --prompt='> ' \
     --preview="$self_q switch --preview {2} {3}" \
     --preview-window='right,45%,border-left' \
-    --bind="ctrl-s:reload($self_q switch --list sessions)+change-prompt(sessions> )" \
-    --bind="ctrl-w:reload($self_q switch --list worktrees)+change-prompt(worktrees> )" \
-  )" || return 0
-  [[ -z "$out" ]] && return 0
+    --bind="ctrl-w:reload($self_q switch --toggle $sf_q)" \
+    --bind="ctrl-s:reload($self_q switch --list sessions)" \
+  )" || rc=$?
+  rm -f "$sf"
+  [[ "$rc" -ne 0 || -z "$out" ]] && return 0
 
   local m wt sess pane urgency disp
   IFS=$'\t' read -r m wt sess pane urgency disp <<< "$out"
   _switch_go "$m" "$wt" "$sess" "$pane" "$urgency"
 }
 
-# Emit rows for every worktree of every registered repo.
+# Emit rows for every worktree of every registered repo. The first line is a
+# view-indicator header consumed by fzf --header-lines=1, never selectable.
 _switch_list() {
   local kind="$1"
+
+  local label
+  case "$kind" in
+    active)   label="active" ;;
+    sessions) label="claude sessions" ;;
+    *)        label="all worktrees" ;;
+  esac
+  printf '%s[%s]  ctrl-w: toggle active/all · ctrl-s: sessions · enter: switch%s\n' \
+    "$S_DIM" "$label" "$S_RST"
 
   # Load live claude sessions once; rows aggregate from this.
   local sessions=()
@@ -144,9 +177,13 @@ _switch_emit_wt() {
   fi
 
   # Worktree row: always in the worktrees view; in the sessions view only as a
-  # placeholder for worktrees with no claude session.
+  # placeholder for worktrees with no claude session; in the active view only
+  # for worktrees that have one.
   local total=$((n_att + n_wait + n_run))
   if [[ "$kind" == "sessions" && "$total" -gt 0 ]]; then
+    return 0
+  fi
+  if [[ "$kind" == "active" && "$total" -eq 0 ]]; then
     return 0
   fi
 
