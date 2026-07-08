@@ -27,8 +27,16 @@ tmux_session_name() {
   local branch="$1"
   local prefix
   prefix="$(cfg_get worktree.tmux_session_prefix "")"
+  # Without an explicit prefix, scope by project name — otherwise branches
+  # that exist in several repos (e.g. "main") collide on one session.
+  if [[ -z "$prefix" ]]; then
+    local project
+    project="$(cfg_get name "")"
+    [[ -z "$project" ]] && project="$(basename "$(cfg_get path "$PWD")")"
+    prefix="${project}_"
+  fi
   # tmux disallows ':' and '.' in session names; normalize for safety.
-  printf '%s%s' "$prefix" "$(sanitize "$branch")" | tr ':.' '__'
+  printf '%s%s' "$(sanitize "$prefix")" "$(sanitize "$branch")" | tr ':.' '__'
 }
 
 tmux_has_session() {

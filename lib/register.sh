@@ -84,7 +84,7 @@ name: '$q_name'
 #   parent_dir: ../worktrees
 #   base_ref: origin/main
 #   tmux_enabled: true
-#   tmux_session_prefix: ""
+#   tmux_session_prefix: ""   # default: "<name>_"
 #   copy_env:
 #     - .env
 #   setup:
