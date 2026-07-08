@@ -32,7 +32,9 @@ Usage:
   multiwt status
   multiwt exec <cmd>
   multiwt cd <name>
+  multiwt switch
   multiwt register [--name <slug>] [--refresh]
+  multiwt claude-hook    (internal: endpoint for Claude Code hooks)
 
 Global flags:
   --verbose          Verbose logging
@@ -61,7 +63,9 @@ main() {
     status)   . "$MULTIWT_LIB/status.sh"   && cmd_status   "$@" ;;
     exec)     . "$MULTIWT_LIB/exec.sh"     && cmd_exec     "$@" ;;
     cd)       . "$MULTIWT_LIB/cd.sh"       && cmd_cd       "$@" ;;
+    switch)   . "$MULTIWT_LIB/switch.sh"   && cmd_switch   "$@" ;;
     register) . "$MULTIWT_LIB/register.sh" && cmd_register "$@" ;;
+    claude-hook) . "$MULTIWT_LIB/claude_hook.sh" && cmd_claude_hook "$@" ;;
     *) err "Unknown command: $cmd"; usage; exit 1 ;;
   esac
 }

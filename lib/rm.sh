@@ -1,6 +1,8 @@
 # shellcheck shell=bash
 # rm.sh — remove worktree + tmux session.
 
+. "$MULTIWT_LIB/claude_state.sh"
+
 _rm_usage() {
   cat <<EOF
 Usage: multiwt rm <name|path> [--purge] [--force]
@@ -59,6 +61,9 @@ cmd_rm() {
   fi
 
   git -C "$MULTIWT_ROOT_PATH" worktree prune
+
+  # Drop Claude session state recorded for this worktree.
+  claude_state_forget_path "$wt_path"
 
   if [[ "$purge" -eq 1 ]]; then
     local runs_dir

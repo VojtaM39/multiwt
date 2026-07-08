@@ -9,6 +9,7 @@ files copied and setup hooks run.
 - `tmux`
 - `yq` (mikefarah, Go version) — `brew install yq`
 - `bash` ≥ 4
+- `fzf` — `brew install fzf` (only for `multiwt switch`)
 
 ## Install
 
@@ -54,11 +55,107 @@ multiwt up feat/foo  # creates worktree + tmux session, attaches
 | `multiwt sync [--all]`                   | Fetch + rebase current (or all) worktrees on upstream                |
 | `multiwt exec <cmd>`                     | Run `<cmd>` in every worktree, prefix output with branch (parallel)  |
 | `multiwt cd <name>`                      | Print the worktree path — use as `cd "$(multiwt cd feat/foo)"`       |
+| `multiwt switch`                         | fzf switcher across ALL registered projects/worktrees, with Claude status |
 | `multiwt register [--name <slug>]`       | Initialize this repo's config                                        |
 | `multiwt register --refresh`             | Walk `~/.agentic/repos/`, rewrite stale `path:` entries              |
+| `multiwt claude-hook`                    | Internal: endpoint for Claude Code hooks (see below)                 |
 
 `multiwt up` is idempotent: re-running on an existing worktree just re-attaches.
 To rebuild, `multiwt rm` then `multiwt up`.
+
+## Switcher
+
+`multiwt switch` is a global, cwd-independent picker: it lists every worktree
+of every repo registered under `~/.agentic/repos/`, one row per worktree, with
+an aggregate of the Claude Code sessions running inside it:
+
+```
+agentic      ▸ feat/switcher   ⚠1 ●1
+agentic      ▸ main            ◐1
+backend      ▸ fix/auth-race   ○  (no tmux)
+```
+
+- `⚠ N` — sessions blocked on you (permission prompt) · `◐ N` — finished,
+  waiting for your next prompt · `● N` — running · `○` — no Claude session.
+- The preview panel shows per-worktree detail: dirty/ahead/behind, last
+  commit, and each Claude session with its pane and age.
+- `ctrl-s` switches to one-row-per-Claude-session view (`ctrl-w` back).
+
+Enter switches to the worktree's tmux session, creating it first if needed.
+If the most urgent Claude session is blocked (`⚠`) or waiting (`◐`), enter
+additionally focuses its exact window/pane — via `select-window`/`select-pane`
+only, so the session's layout is never modified. In the `ctrl-s` view, enter
+always jumps to that specific session's pane. Plain `● running` worktrees get
+a plain switch, landing wherever you last were.
+
+Bind it as a tmux popup (e.g. replacing your session switcher):
+
+```tmux
+# ~/.tmux.conf
+bind-key i display-popup -E -w 90% -h 70% "multiwt switch"
+```
+
+If your tmux launches commands with a non-login shell that lacks your `$PATH`,
+use the absolute path to the `multiwt` symlink (e.g.
+`~/.local/bin/multiwt switch`).
+
+## Claude session status (hooks)
+
+The switcher's `⚠/◐/●` column is fed by Claude Code hooks. This is a manual,
+one-time setup: add the hooks to `~/.claude/settings.json` (create the file if
+it doesn't exist; if you already have a `hooks` block, merge these entries into
+it):
+
+```json
+{
+  "hooks": {
+    "SessionStart":     [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
+    "PostToolUse":      [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
+    "Stop":             [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
+    "Notification":     [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }]
+  }
+}
+```
+
+If `multiwt` isn't on the `$PATH` Claude Code runs hooks with, use the
+absolute path to the symlink instead.
+
+How each event maps to a state:
+
+| Event              | State                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| `UserPromptSubmit` | `●` running                                                   |
+| `PostToolUse`      | `●` running — also clears a `⚠` after you approve a permission |
+| `Stop`             | `◐` waiting (Claude finished its turn)                        |
+| `SessionStart`     | `◐` waiting                                                   |
+| `Notification`     | `⚠` needs input (permission prompt); the "waiting for your input" idle nudge maps to `◐` |
+| `SessionEnd`       | state file deleted                                            |
+
+`PostToolUse` fires on every tool call, so it's the chattiest hook. It's what
+flips `⚠ → ●` when you approve a permission without typing anything; omit it
+if you don't mind a stale `⚠` until the next `Stop`.
+
+Mechanics and caveats:
+
+- Each Claude session writes one file to `~/.agentic/state/claude/<session_id>`
+  containing its state, cwd, tmux pane (`$TMUX_PANE`), timestamp, and last
+  notification message. Multiple sessions in one worktree therefore never
+  clobber each other; the switcher aggregates them at render time.
+- Sessions are matched to worktrees by cwd prefix, so a Claude session started
+  in a subdirectory of a worktree still counts toward it.
+- Crash cleanup is automatic: at render time, a state file whose recorded pane
+  no longer exists — or exists without a `claude` process under it — is
+  deleted. Files older than 7 days are dropped unconditionally (covers
+  sessions started outside tmux, which have no pane to verify).
+- `multiwt rm` deletes the state files of the removed worktree.
+- The hook fires for every Claude session on the machine, including repos not
+  registered with multiwt; those state files are simply never displayed and
+  get garbage-collected like the rest.
+- The hook is deliberately paranoid: it never writes to stdout (Claude Code
+  injects `UserPromptSubmit` hook stdout into the model's context) and always
+  exits 0, so a broken install can't block or slow a Claude session.
 
 ## Config
 
@@ -92,6 +189,7 @@ matches the repo's path.
 ~/.agentic/
 ├── config.yml                # global defaults
 ├── repos/<name>.yml          # one per repo
+├── state/claude/<session_id> # Claude Code session state (written by claude-hook)
 └── runs/<project>/<branch>/multiwt/setup-<idx>.log
 ```
 
