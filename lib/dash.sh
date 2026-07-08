@@ -136,20 +136,29 @@ _dash_emit_wt() {
     fi
   fi
 
+  # Same freshness rule as the attention jump: a session with activity newer
+  # than its last focus (ts > seen) needs your eyes; one you've already
+  # looked at doesn't. The pane-focus-in hook keeps `seen` current.
   local line sid state cwd pane ts seen msg
-  local n_att=0 n_wait=0 n_run=0
+  local n_att=0 n_new=0 n_wait=0 n_run=0
   if [[ ${#sessions[@]} -gt 0 ]]; then
     for line in "${sessions[@]}"; do
       IFS=$'\t' read -r sid state cwd pane ts seen msg <<< "$line"
       [[ "$cwd" == "$wt" || "$cwd" == "$wt"/* ]] || continue
       case "$state" in
         attention) n_att=$((n_att + 1)) ;;
-        waiting)   n_wait=$((n_wait + 1)) ;;
+        waiting)
+          if (( ts > seen )); then
+            n_new=$((n_new + 1))
+          else
+            n_wait=$((n_wait + 1))
+          fi
+          ;;
         running)   n_run=$((n_run + 1)) ;;
       esac
     done
   fi
-  local total=$((n_att + n_wait + n_run))
+  local total=$((n_att + n_new + n_wait + n_run))
 
   # Active filter: hide worktrees with neither a tmux session nor claude.
   if [[ "$has_tmux" -eq 0 && "$total" -eq 0 ]]; then
@@ -160,8 +169,8 @@ _dash_emit_wt() {
     printf '%s%s%s%s\n' "$S_BLD" "$proj" "$S_RST" "$eol"
   fi
 
-  local agg=""
-  if (( n_att  > 0 )); then agg+="${S_RED}⚠${n_att}${S_RST} "; fi
+  local needs=$((n_att + n_new)) agg=""
+  if (( needs  > 0 )); then agg+="${S_RED}⚠${needs}${S_RST} "; fi
   if (( n_wait > 0 )); then agg+="${S_CYN}◐${n_wait}${S_RST} "; fi
   if (( n_run  > 0 )); then agg+="${S_GRN}●${n_run}${S_RST} "; fi
   if [[ -z "$agg" ]]; then agg="${S_DIM}○${S_RST} "; fi
@@ -173,17 +182,30 @@ _dash_emit_wt() {
 
   printf '  ▸ %-30.30s%s %s%s\n' "$branch" "$dirty_note" "$agg" "$eol"
 
-  # Session detail lines; whole line red when it needs input.
-  local lc
+  # Session detail lines: red = what prefix+g would jump to (blocked, or
+  # finished output you haven't focused yet); dim = seen or running.
+  local icon lbl lc
   if [[ ${#sessions[@]} -gt 0 ]]; then
     for line in "${sessions[@]}"; do
       IFS=$'\t' read -r sid state cwd pane ts seen msg <<< "$line"
       [[ "$cwd" == "$wt" || "$cwd" == "$wt"/* ]] || continue
-      lc=""
-      [[ "$state" == "attention" ]] && lc="$S_RED"
+      case "$state" in
+        attention)
+          icon="${S_RED}⚠${S_RST}"; lbl="needs input"; lc="$S_RED" ;;
+        waiting)
+          if (( ts > seen )); then
+            icon="${S_RED}◐${S_RST}"; lbl="new output"; lc="$S_RED"
+          else
+            icon="${S_CYN}◐${S_RST}"; lbl="waiting"; lc="$S_DIM"
+          fi
+          ;;
+        running)
+          icon="${S_GRN}●${S_RST}"; lbl="running"; lc="$S_DIM" ;;
+        *)
+          icon="${S_DIM}○${S_RST}"; lbl="-"; lc="$S_DIM" ;;
+      esac
       printf '      %s %s%-11s %-5s %4s  %.60s%s%s\n' \
-        "$(claude_state_icon "$state")" "${lc:-$S_DIM}" \
-        "$(claude_state_label "$state")" "$pane" \
+        "$icon" "$lc" "$lbl" "$pane" \
         "$(claude_fmt_age $((now - ts)))" "$msg" "$S_RST" "$eol"
     done
   fi

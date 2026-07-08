@@ -17,7 +17,7 @@ cmd_claude_hook() {
 
 _claude_hook_run() {
   command -v yq >/dev/null 2>&1 || return 0
-  local payload event sid cwd msg
+  local payload event sid cwd msg tool
   payload="$(cat)"
   [[ -z "$payload" ]] && return 0
 
@@ -27,11 +27,13 @@ _claude_hook_run() {
     IFS= read -r event
     IFS= read -r sid
     IFS= read -r cwd
+    IFS= read -r tool
     IFS= read -r msg
   } < <(printf '%s' "$payload" | yq -p=json -r '
     (.hook_event_name // ""),
     (.session_id // ""),
     (.cwd // ""),
+    (.tool_name // ""),
     ((.message // "") | split("\n") | .[0])
   ')
 
@@ -44,10 +46,24 @@ _claude_hook_run() {
       state="waiting"; msg="" ;;
     UserPromptSubmit|PostToolUse)
       state="running"; msg="" ;;
+    PreToolUse)
+      # Blocking dialogs that never produce a permission Notification
+      # (especially under --dangerously-skip-permissions): a question or a
+      # plan review means Claude is stuck on you right now.
+      case "${tool:-}" in
+        AskUserQuestion) state="attention"; msg="Claude is asking a question" ;;
+        ExitPlanMode)    state="attention"; msg="Plan ready for review" ;;
+        *) return 0 ;;
+      esac
+      ;;
     Notification)
-      # The idle nudge is Claude waiting on you, not a blocking prompt like a
-      # permission request — keep it one urgency level below "attention".
       if printf '%s' "${msg:-}" | grep -qi 'waiting for your input'; then
+        # The idle nudge is Claude waiting on you, not a blocking prompt —
+        # keep it below "attention", and never let it DOWNGRADE a session
+        # that is genuinely blocked (permission prompt, question, plan).
+        local cur
+        cur="$(_claude_state_field "$(claude_state_dir)/$sid" state)"
+        [[ "$cur" == "attention" ]] && return 0
         state="waiting"
       else
         state="attention"

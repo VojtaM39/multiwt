@@ -132,7 +132,12 @@ ai-scraper3
 - Only active worktrees are shown: a live tmux session, or a Claude session
   running outside tmux. Everything else is hidden (use the switcher's
   `ctrl-w` view to see all worktrees).
-- Sessions needing input are painted red — visible from across the room.
+- Red means the same thing as a `multiwt next` target: the session is blocked
+  on you (`⚠ needs input`) or finished something you haven't looked at yet
+  (`◐ new output`, i.e. its last event is newer than your last focus of its
+  pane). Once you focus the pane, the `pane-focus-in` hook marks it seen and
+  the line drops to a dim `◐ waiting`. The worktree's `⚠N` badge counts
+  blocked + unseen together.
 - Refresh cadence is `--interval` seconds (default 2); `q` quits.
 - Frames redraw in place (no clear-screen), so there's no flicker.
 - `multiwt dash --once` prints a single frame and exits — usable in scripts
@@ -190,6 +195,7 @@ it):
     "SessionStart":     [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
     "PostToolUse":      [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
+    "PreToolUse":       [{ "matcher": "AskUserQuestion|ExitPlanMode", "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
     "Stop":             [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
     "Notification":     [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }],
     "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "multiwt claude-hook" }] }]
@@ -208,7 +214,8 @@ How each event maps to a state:
 | `PostToolUse`      | `●` running — also clears a `⚠` after you approve a permission |
 | `Stop`             | `◐` waiting (Claude finished its turn)                        |
 | `SessionStart`     | `◐` waiting                                                   |
-| `Notification`     | `⚠` needs input (permission prompt); the "waiting for your input" idle nudge maps to `◐` |
+| `PreToolUse` (`AskUserQuestion\|ExitPlanMode`) | `⚠` needs input — fires the moment Claude blocks on a question or plan review. Essential under `--dangerously-skip-permissions`, where permission notifications never fire |
+| `Notification`     | `⚠` needs input (permission prompt); the "waiting for your input" idle nudge maps to `◐` and never downgrades an existing `⚠` |
 | `SessionEnd`       | state file deleted                                            |
 
 `PostToolUse` fires on every tool call, so it's the chattiest hook. It's what
