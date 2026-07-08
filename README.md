@@ -215,7 +215,7 @@ How each event maps to a state:
 | `Stop`             | `◐` waiting (Claude finished its turn)                        |
 | `SessionStart`     | `◐` waiting                                                   |
 | `PreToolUse` (`AskUserQuestion\|ExitPlanMode`) | `⚠` needs input — fires the moment Claude blocks on a question or plan review. Essential under `--dangerously-skip-permissions`, where permission notifications never fire |
-| `Notification`     | `⚠` needs input (permission prompt); the "waiting for your input" idle nudge maps to `◐` and never downgrades an existing `⚠` |
+| `Notification`     | `⚠` needs input (permission prompt). The "waiting for your input" idle nudge carries no new information and can re-fire while a session idles, so it never refreshes freshness: it only creates a missing state file or corrects a stale `●` to `◐` (keeping ts/seen) |
 | `SessionEnd`       | state file deleted                                            |
 
 `PostToolUse` fires on every tool call, so it's the chattiest hook. It's what

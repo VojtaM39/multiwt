@@ -37,6 +37,24 @@ claude_state_delete() {
   rm -f "$(claude_state_dir)/$1"
 }
 
+# Like claude_state_write, but keeps the existing ts and seen stamps — for
+# events that correct the state without representing new activity (the idle
+# nudge). Freshness (ts vs seen) must not change.
+claude_state_write_keep_clock() {
+  local session_id="$1" state="$2" cwd="$3" pane="$4" msg="$5"
+  local f old_ts old_seen
+  f="$(claude_state_dir)/$session_id"
+  old_ts="$(_claude_state_field "$f" ts)"
+  old_seen="$(_claude_state_field "$f" seen)"
+  claude_state_write "$session_id" "$state" "$cwd" "$pane" "$msg"
+  local tmp="$f.tmp.$$"
+  {
+    grep -v '^ts=\|^seen=' "$f"
+    printf 'ts=%s\n' "${old_ts:-$(date +%s)}"
+    [[ -n "$old_seen" ]] && printf 'seen=%s\n' "$old_seen"
+  } > "$tmp" && mv "$tmp" "$f"
+}
+
 # Delete state files whose cwd is (under) the given path. Used by `multiwt rm`.
 claude_state_forget_path() {
   local root="$1" dir f cwd

@@ -58,13 +58,24 @@ _claude_hook_run() {
       ;;
     Notification)
       if printf '%s' "${msg:-}" | grep -qi 'waiting for your input'; then
-        # The idle nudge is Claude waiting on you, not a blocking prompt —
-        # keep it below "attention", and never let it DOWNGRADE a session
-        # that is genuinely blocked (permission prompt, question, plan).
+        # The idle nudge carries no new information and can re-fire while a
+        # session just sits there — it must never refresh freshness (that
+        # made seen sessions randomly turn "new" again), never downgrade a
+        # blocked session, and never touch an already-waiting one. It only:
         local cur
         cur="$(_claude_state_field "$(claude_state_dir)/$sid" state)"
-        [[ "$cur" == "attention" ]] && return 0
-        state="waiting"
+        case "$cur" in
+          attention|waiting)
+            return 0 ;;
+          running)
+            # Correct a stale "running" (e.g. interrupted turn) but keep the
+            # old ts/seen so it doesn't jump back to "unseen".
+            claude_state_write_keep_clock "$sid" "waiting" "${cwd:-}" "${TMUX_PANE:-}" "${msg:-}"
+            return 0 ;;
+          *)
+            # No state yet: session sitting at a prompt we never saw start.
+            state="waiting" ;;
+        esac
       else
         state="attention"
       fi
