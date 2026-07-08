@@ -66,7 +66,8 @@ claude_state_mark_seen() {
   shopt -s nullglob
   for f in "$dir"/*; do
     [[ "$(_claude_state_field "$f" pane)" == "$pane" ]] || continue
-    tmp="$f.tmp.$$"
+    # Dot-prefixed so a concurrent live_sessions scan never globs the tmp.
+    tmp="$dir/.$(basename "$f").tmp.$$"
     { grep -v '^seen=' "$f"; printf 'seen=%s\n' "$now"; } > "$tmp" && mv "$tmp" "$f"
   done
   shopt -u nullglob

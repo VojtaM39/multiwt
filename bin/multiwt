@@ -36,6 +36,7 @@ Usage:
   multiwt next [--print]
   multiwt register [--name <slug>] [--refresh]
   multiwt claude-hook    (internal: endpoint for Claude Code hooks)
+  multiwt seen <pane>    (internal: endpoint for the tmux pane-focus-in hook)
 
 Global flags:
   --verbose          Verbose logging
@@ -66,6 +67,7 @@ main() {
     cd)       . "$MULTIWT_LIB/cd.sh"       && cmd_cd       "$@" ;;
     switch)   . "$MULTIWT_LIB/switch.sh"   && cmd_switch   "$@" ;;
     next)     . "$MULTIWT_LIB/next.sh"     && cmd_next     "$@" ;;
+    seen)     . "$MULTIWT_LIB/next.sh"     && cmd_seen     "$@" ;;
     register) . "$MULTIWT_LIB/register.sh" && cmd_register "$@" ;;
     claude-hook) . "$MULTIWT_LIB/claude_hook.sh" && cmd_claude_hook "$@" ;;
     *) err "Unknown command: $cmd"; usage; exit 1 ;;

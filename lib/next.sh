@@ -17,6 +17,14 @@ Usage: multiwt next [--print]
 EOF
 }
 
+# tmux pane-focus-in hook endpoint: mark any claude session in the focused
+# pane as seen, however the user navigated there. Silent, always exits 0 —
+# it runs on every focus change.
+cmd_seen() {
+  claude_state_mark_seen "${1:-}" >/dev/null 2>&1 || true
+  exit 0
+}
+
 cmd_next() {
   local print=0
   case "${1:-}" in
@@ -30,12 +38,23 @@ cmd_next() {
   local current
   current="$(tmux display-message -p '#{pane_id}' 2>/dev/null || true)"
 
+  # Panes on screen in an attached client right now count as seen — the user
+  # is looking at them. (The pane-focus-in hook covers past visits; this is
+  # the safety net for setups without it.)
+  local visible=" " vp
+  for vp in $(tmux list-panes -a -F \
+      '#{?#{&&:#{pane_active},#{&&:#{window_active},#{session_attached}}},#{pane_id},}' \
+      2>/dev/null); do
+    visible+="$vp "
+    [[ "$print" -eq 0 ]] && claude_state_mark_seen "$vp"
+  done
+
   # fresh=1 rows are unvisited; fresh=0 rows still need action but were
   # already jumped to (counted so the "nothing new" message can say so).
   local fresh rank ts pane target="" pending=0
   while IFS=$'\t' read -r fresh rank ts pane; do
     [[ -z "$pane" ]] && continue
-    if [[ "$fresh" == "1" ]]; then
+    if [[ "$fresh" == "1" && "$visible" != *" $pane "* ]]; then
       if [[ -z "$target" && "$pane" != "$current" ]]; then
         target="$pane"
       fi

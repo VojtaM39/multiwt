@@ -28,6 +28,8 @@ worktree instead. ctrl-w toggles between the two either way.
 Internal flags (used by the fzf UI itself):
   --list <worktrees|sessions|active>   Print rows
   --toggle <state-file>                Flip active/all and print the new rows
+  --relist <state-file>                Re-print current view (+ kill outcome)
+  --kill <wt> <sess> <state-file>      Remove worktree + session if safe
   --preview <wt_path> <sess>           Render the preview panel
 EOF
 }
@@ -37,6 +39,8 @@ cmd_switch() {
   case "${1:-}" in
     --list)    shift; _switch_list "${1:-worktrees}" ;;
     --toggle)  shift; _switch_toggle "${1:?state file required}" ;;
+    --relist)  shift; _switch_relist "${1:?state file required}" ;;
+    --kill)    shift; _switch_kill "${1:?wt path}" "${2:?session}" "${3:?state file}" ;;
     --preview) shift; _switch_preview "$@" ;;
     --all)     _switch_ui worktrees ;;
     --active)  _switch_ui active ;;
@@ -55,6 +59,65 @@ _switch_toggle() {
   if [[ "$cur" == "active" ]]; then next="worktrees"; else next="active"; fi
   printf '%s' "$next" > "$sf"
   _switch_list "$next"
+}
+
+# ctrl-x reload handler: re-list the current view, surfacing the outcome of
+# the preceding --kill (left in "$sf.notice") in the header row.
+_switch_relist() {
+  local sf="$1" kind note=""
+  kind="$(cat "$sf" 2>/dev/null || echo active)"
+  if [[ -f "$sf.notice" ]]; then
+    note="$(cat "$sf.notice")"
+    rm -f "$sf.notice"
+  fi
+  _switch_list "$kind" "$note"
+}
+
+# ctrl-x action: remove worktree + tmux session, but only when it's safe —
+# never the main worktree, never dirty (no --force here on purpose), never
+# with a live claude session inside. Outcome goes to "$sf.notice" because
+# execute-silent has no other channel back to the UI.
+_switch_kill() {
+  local wt="$1" sess="$2" sf="$3"
+  local notice="$sf.notice"
+
+  if [[ ! -d "$wt" ]]; then
+    printf 'not removed — missing: %s' "$wt" > "$notice"; return 0
+  fi
+  local common main
+  common="$(git -C "$wt" rev-parse --git-common-dir 2>/dev/null || true)"
+  if [[ -z "$common" ]]; then
+    printf 'not removed — not a git worktree: %s' "$(basename "$wt")" > "$notice"; return 0
+  fi
+  [[ "$common" != /* ]] && common="$(cd "$wt" && cd "$common" && pwd -P)"
+  main="$(dirname "$common")"
+  if [[ "$(cd "$wt" && pwd -P)" == "$(cd "$main" && pwd -P)" ]]; then
+    printf 'not removed — main worktree' > "$notice"; return 0
+  fi
+
+  local sid state cwd pane ts seen msg
+  while IFS=$'\t' read -r sid state cwd pane ts seen msg; do
+    if [[ "$cwd" == "$wt" || "$cwd" == "$wt"/* ]]; then
+      printf 'not removed — claude session still running in %s' "$(basename "$wt")" > "$notice"
+      return 0
+    fi
+  done < <(claude_state_live_sessions)
+
+  if [[ -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
+    printf 'not removed — dirty: %s' "$(basename "$wt")" > "$notice"; return 0
+  fi
+
+  local err_out
+  if ! err_out="$(git -C "$main" worktree remove "$wt" 2>&1)"; then
+    printf 'not removed — git: %s' "$(printf '%s' "$err_out" | head -n1)" > "$notice"
+    return 0
+  fi
+  git -C "$main" worktree prune 2>/dev/null || true
+  if [[ "$sess" != "-" ]] && tmux_available; then
+    tmux_kill_session "$sess"
+  fi
+  claude_state_forget_path "$wt"
+  printf 'removed: %s' "$(basename "$wt")" > "$notice"
 }
 
 _switch_ui() {
@@ -78,6 +141,7 @@ _switch_ui() {
     --preview-window='right,45%,border-left' \
     --bind="ctrl-w:reload($self_q switch --toggle $sf_q)" \
     --bind="ctrl-s:reload($self_q switch --list sessions)" \
+    --bind="ctrl-x:execute-silent($self_q switch --kill {2} {3} $sf_q)+reload($self_q switch --relist $sf_q)" \
   )" || rc=$?
   rm -f "$sf"
   [[ "$rc" -ne 0 || -z "$out" ]] && return 0
@@ -88,9 +152,10 @@ _switch_ui() {
 }
 
 # Emit rows for every worktree of every registered repo. The first line is a
-# view-indicator header consumed by fzf --header-lines=1, never selectable.
+# view-indicator header consumed by fzf --header-lines=1, never selectable;
+# an optional note (kill outcome) replaces the usual key hints there.
 _switch_list() {
-  local kind="$1"
+  local kind="$1" note="${2:-}"
 
   local label
   case "$kind" in
@@ -98,8 +163,12 @@ _switch_list() {
     sessions) label="claude sessions" ;;
     *)        label="all worktrees" ;;
   esac
-  printf '%s[%s]  ctrl-w: toggle active/all · ctrl-s: sessions · enter: switch%s\n' \
-    "$S_DIM" "$label" "$S_RST"
+  if [[ -n "$note" ]]; then
+    printf '%s[%s]%s  %s%s%s\n' "$S_DIM" "$label" "$S_RST" "$S_YEL" "$note" "$S_RST"
+  else
+    printf '%s[%s]  ctrl-w: toggle · ctrl-s: sessions · ctrl-x: rm clean wt · enter: switch%s\n' \
+      "$S_DIM" "$label" "$S_RST"
+  fi
 
   # Load live claude sessions once; rows aggregate from this.
   local sessions=()

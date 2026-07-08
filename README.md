@@ -85,6 +85,12 @@ backend      ▸ fix/auth-race   ○  (no tmux)
   toggles between that and all worktrees (the header row shows which view
   you're in), `ctrl-s` shows one row per Claude session. `multiwt switch
   --all` opens unfiltered.
+- `ctrl-x` removes the highlighted worktree and kills its tmux session —
+  but only when safe: never the main worktree, never a dirty tree (there is
+  deliberately no `--force` here; use `multiwt rm --force`), and never while
+  a Claude session is still running inside it. The outcome appears in the
+  header row. The branch itself is kept, so a removed worktree can be
+  recreated with `multiwt up`.
 
 Enter switches to the worktree's tmux session, creating it first if needed.
 If the most urgent Claude session is blocked (`⚠`) or waiting (`◐`), enter
@@ -115,13 +121,30 @@ only; layouts are never modified. Bind it:
 bind g run-shell "multiwt next"
 ```
 
-Each press marks the pane you're leaving as *seen*, so repeated presses walk
-through every needy session exactly once (across all projects and tmux
-sessions) and then report "nothing new" — no ping-ponging. A session
-re-enters the rotation as soon as it produces a new event (finishes another
-turn, raises a permission prompt). Merely reading a session without pressing
-`g` from it does not mark it seen. Seen-ness only affects `next`; the
-switcher always shows the true `⚠/◐/●` state.
+Sessions you've already looked at are skipped: every pane visit marks its
+Claude session as *seen*, and only sessions with activity newer than their
+seen-stamp are jump targets. So repeated presses walk through every needy
+session exactly once (across all projects and tmux sessions), then report
+"nothing new" without moving — no ping-ponging, no jumping to things you've
+already read. A session re-enters the rotation as soon as it produces a new
+event (finishes another turn, raises a permission prompt).
+
+Seen-marking has two layers:
+
+- A tmux `pane-focus-in` hook stamps a session seen whenever its pane gains
+  focus — however you navigated there (switcher, `choose-session`, manual
+  pane switching). Add to `~/.tmux.conf`:
+
+  ```tmux
+  set -g focus-events on
+  set-hook -g pane-focus-in "run-shell -b 'multiwt seen #{hook_pane}'"
+  ```
+
+- As a fallback (e.g. without the hook), `multiwt next` itself stamps every
+  pane currently visible in an attached client at press time.
+
+Seen-ness only affects `next`; the switcher always shows the true `⚠/◐/●`
+state.
 
 ## Claude session status (hooks)
 
